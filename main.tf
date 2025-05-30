@@ -96,6 +96,50 @@ resource "aws_iam_role_policy" "s3_write" {
   })
 }
 
+# Grant Lambda role permission to write to DynamoDB
+resource "aws_iam_role_policy" "dynamodb_write" {
+  name = "lambda-dynamodb-write"
+  role = aws_iam_role.lambda_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action   = ["dynamodb:PutItem"]
+      Effect   = "Allow"
+      Resource = aws_dynamodb_table.demo.arn
+    }]
+  })
+}
+
+# Define the DynamoDB table
+resource "aws_dynamodb_table" "demo" {
+  name         = "demo-table"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "PK"
+
+  attribute {
+    name = "PK"
+    type = "S"
+  }
+
+  tags = {
+    Name = "demo-table"
+  }
+}
+
+# --- then in your aws_lambda_function "lambda1" block, extend the environment: ---
+
+resource "aws_lambda_function" "lambda1" {
+  # ... (other settings unchanged) ...
+
+  environment {
+    variables = {
+      BUCKET       = aws_s3_bucket.shared.bucket
+      DYNAMO_TABLE = aws_dynamodb_table.demo.name
+    }
+  }
+}
+
 # Package Lambdas
 data "archive_file" "lambda1" {
   type        = "zip"

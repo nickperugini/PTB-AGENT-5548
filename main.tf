@@ -127,19 +127,6 @@ resource "aws_dynamodb_table" "demo" {
   }
 }
 
-# --- then in your aws_lambda_function "lambda1" block, extend the environment: ---
-
-resource "aws_lambda_function" "lambda1" {
-  # ... (other settings unchanged) ...
-
-  environment {
-    variables = {
-      BUCKET       = aws_s3_bucket.shared.bucket
-      DYNAMO_TABLE = aws_dynamodb_table.demo.name
-    }
-  }
-}
-
 # Package Lambdas
 data "archive_file" "lambda1" {
   type        = "zip"
@@ -177,7 +164,8 @@ resource "aws_lambda_function" "lambda1" {
 
   environment {
     variables = {
-      BUCKET = aws_s3_bucket.shared.bucket
+      BUCKET       = aws_s3_bucket.shared.bucket
+      DYNAMO_TABLE = aws_dynamodb_table.demo.name
     }
   }
 }

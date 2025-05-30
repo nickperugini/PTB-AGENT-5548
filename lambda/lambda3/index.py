@@ -6,7 +6,7 @@ def handler(event, context):
     # write a simple text file naming this Lambda
     s3.put_object(
         Bucket=bucket,
-        Key="lambda1.txt",       # change per function
+        Key="lambda3.txt",       # change per function
         Body="Hello from lambda1"  # change per function
     )
     return {"statusCode": 200, "body": "ok"}

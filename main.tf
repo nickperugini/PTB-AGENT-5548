@@ -15,8 +15,7 @@ provider "aws" {
   region = var.aws_region
 }
 
-#--- VPC & Networking -----------------------------------------------------------------
-
+# VPC & Networking
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
   tags = { Name = "demo-vpc" }
@@ -24,13 +23,20 @@ resource "aws_vpc" "main" {
 
 data "aws_availability_zones" "azs" {}
 
-resource "aws_subnet" "public" {
-  count                   = 2
+resource "aws_subnet" "public1" {
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index)
-  availability_zone       = data.aws_availability_zones.azs.names[count.index]
+  cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 8, 0)
+  availability_zone       = data.aws_availability_zones.azs.names[0]
   map_public_ip_on_launch = true
-  tags = { Name = "public-${count.index}" }
+  tags = { Name = "public-0" }
+}
+
+resource "aws_subnet" "public2" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 8, 1)
+  availability_zone       = data.aws_availability_zones.azs.names[1]
+  map_public_ip_on_launch = true
+  tags = { Name = "public-1" }
 }
 
 resource "aws_security_group" "lambda_sg" {
@@ -46,19 +52,17 @@ resource "aws_security_group" "lambda_sg" {
   }
 }
 
-#--- S3 Bucket -------------------------------------------------------------------------
+# S3 Bucket
+resource "random_id" "bucket_id" {
+  byte_length = 4
+}
 
 resource "aws_s3_bucket" "shared" {
   bucket = "tf-demo-shared-bucket-${random_id.bucket_id.hex}"
   acl    = "private"
 }
 
-resource "random_id" "bucket_id" {
-  byte_length = 4
-}
-
-#--- IAM Role for Lambdas --------------------------------------------------------------
-
+# IAM Role for Lambdas
 data "aws_iam_policy_document" "lambda_assume" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -92,8 +96,7 @@ resource "aws_iam_role_policy" "s3_write" {
   })
 }
 
-#--- Package each Lambda ---------------------------------------------------------------
-
+# Package Lambdas
 data "archive_file" "lambda1" {
   type        = "zip"
   source_file = "${path.module}/lambda/lambda1/index.py"
@@ -115,23 +118,16 @@ data "archive_file" "lambda4" {
   output_path = "${path.module}/lambda4.zip"
 }
 
-#--- Define Lambdas --------------------------------------------------------------------
-
-locals {
-  names = ["lambda1","lambda2","lambda3","lambda4"]
-}
-
-resource "aws_lambda_function" "functions" {
-  for_each = toset(local.names)
-
-  function_name = each.key
+# Lambdas individually
+resource "aws_lambda_function" "lambda1" {
+  function_name = "lambda1"
   role          = aws_iam_role.lambda_exec.arn
   handler       = "index.handler"
   runtime       = "python3.9"
-  filename      = "${path.module}/${each.key}.zip"
+  filename      = "${path.module}/lambda1.zip"
 
   vpc_config {
-    subnet_ids         = aws_subnet.public[*].id
+    subnet_ids         = [aws_subnet.public1.id, aws_subnet.public2.id]
     security_group_ids = [aws_security_group.lambda_sg.id]
   }
 
@@ -142,112 +138,155 @@ resource "aws_lambda_function" "functions" {
   }
 }
 
-#--- API Gateways ----------------------------------------------------------------------
+resource "aws_lambda_function" "lambda2" {
+  function_name = "lambda2"
+  role          = aws_iam_role.lambda_exec.arn
+  handler       = "index.handler"
+  runtime       = "python3.9"
+  filename      = "${path.module}/lambda2.zip"
 
+  vpc_config {
+    subnet_ids         = [aws_subnet.public1.id, aws_subnet.public2.id]
+    security_group_ids = [aws_security_group.lambda_sg.id]
+  }
+
+  environment {
+    variables = {
+      BUCKET = aws_s3_bucket.shared.bucket
+    }
+  }
+}
+
+resource "aws_lambda_function" "lambda3" {
+  function_name = "lambda3"
+  role          = aws_iam_role.lambda_exec.arn
+  handler       = "index.handler"
+  runtime       = "python3.9"
+  filename      = "${path.module}/lambda3.zip"
+
+  vpc_config {
+    subnet_ids         = [aws_subnet.public1.id, aws_subnet.public2.id]
+    security_group_ids = [aws_security_group.lambda_sg.id]
+  }
+
+  environment {
+    variables = {
+      BUCKET = aws_s3_bucket.shared.bucket
+    }
+  }
+}
+
+resource "aws_lambda_function" "lambda4" {
+  function_name = "lambda4"
+  role          = aws_iam_role.lambda_exec.arn
+  handler       = "index.handler"
+  runtime       = "python3.9"
+  filename      = "${path.module}/lambda4.zip"
+
+  vpc_config {
+    subnet_ids         = [aws_subnet.public1.id, aws_subnet.public2.id]
+    security_group_ids = [aws_security_group.lambda_sg.id]
+  }
+
+  environment {
+    variables = {
+      BUCKET = aws_s3_bucket.shared.bucket
+    }
+  }
+}
+
+# API Gateways and integrations for api1 and api2
 resource "aws_apigatewayv2_api" "api1" {
   name          = "api1"
   protocol_type = "HTTP"
 }
-
 resource "aws_apigatewayv2_api" "api2" {
   name          = "api2"
   protocol_type = "HTTP"
 }
 
-# Integrations & Routes for api1 → lambda1, lambda2
-
+# api1 -> lambda1 & lambda2
 resource "aws_apigatewayv2_integration" "api1_lambda1" {
-  api_id                = aws_apigatewayv2_api.api1.id
-  integration_type      = "AWS_PROXY"
-  integration_uri       = aws_lambda_function.functions["lambda1"].invoke_arn
+  api_id                 = aws_apigatewayv2_api.api1.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.lambda1.invoke_arn
   payload_format_version = "2.0"
 }
-
 resource "aws_apigatewayv2_route" "api1_r1" {
   api_id    = aws_apigatewayv2_api.api1.id
   route_key = "GET /lambda1"
   target    = "integrations/${aws_apigatewayv2_integration.api1_lambda1.id}"
 }
-
 resource "aws_lambda_permission" "api1_lambda1" {
   statement_id  = "AllowAPIG1L1"
   action        = "lambda:InvokeFunction"
   principal     = "apigateway.amazonaws.com"
-  function_name = aws_lambda_function.functions["lambda1"].function_name
+  function_name = aws_lambda_function.lambda1.function_name
   source_arn    = "${aws_apigatewayv2_api.api1.execution_arn}/*/*"
 }
 
 resource "aws_apigatewayv2_integration" "api1_lambda2" {
-  api_id                = aws_apigatewayv2_api.api1.id
-  integration_type      = "AWS_PROXY"
-  integration_uri       = aws_lambda_function.functions["lambda2"].invoke_arn
+  api_id                 = aws_apigatewayv2_api.api1.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.lambda2.invoke_arn
   payload_format_version = "2.0"
 }
-
 resource "aws_apigatewayv2_route" "api1_r2" {
   api_id    = aws_apigatewayv2_api.api1.id
   route_key = "GET /lambda2"
   target    = "integrations/${aws_apigatewayv2_integration.api1_lambda2.id}"
 }
-
 resource "aws_lambda_permission" "api1_lambda2" {
   statement_id  = "AllowAPIG1L2"
   action        = "lambda:InvokeFunction"
   principal     = "apigateway.amazonaws.com"
-  function_name = aws_lambda_function.functions["lambda2"].function_name
+  function_name = aws_lambda_function.lambda2.function_name
   source_arn    = "${aws_apigatewayv2_api.api1.execution_arn}/*/*"
 }
-
 resource "aws_apigatewayv2_stage" "api1_stage" {
   api_id      = aws_apigatewayv2_api.api1.id
   name        = "$default"
   auto_deploy = true
 }
 
-# Integrations & Routes for api2 → lambda3, lambda4
-
+# api2 -> lambda3 & lambda4
 resource "aws_apigatewayv2_integration" "api2_lambda3" {
-  api_id                = aws_apigatewayv2_api.api2.id
-  integration_type      = "AWS_PROXY"
-  integration_uri       = aws_lambda_function.functions["lambda3"].invoke_arn
+  api_id                 = aws_apigatewayv2_api.api2.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.lambda3.invoke_arn
   payload_format_version = "2.0"
 }
-
 resource "aws_apigatewayv2_route" "api2_r1" {
   api_id    = aws_apigatewayv2_api.api2.id
   route_key = "GET /lambda3"
   target    = "integrations/${aws_apigatewayv2_integration.api2_lambda3.id}"
 }
-
 resource "aws_lambda_permission" "api2_lambda3" {
   statement_id  = "AllowAPIG2L3"
   action        = "lambda:InvokeFunction"
   principal     = "apigateway.amazonaws.com"
-  function_name = aws_lambda_function.functions["lambda3"].function_name
+  function_name = aws_lambda_function.lambda3.function_name
   source_arn    = "${aws_apigatewayv2_api.api2.execution_arn}/*/*"
 }
 
 resource "aws_apigatewayv2_integration" "api2_lambda4" {
-  api_id                = aws_apigatewayv2_api.api2.id
-  integration_type      = "AWS_PROXY"
-  integration_uri       = aws_lambda_function.functions["lambda4"].invoke_arn
+  api_id                 = aws_apigatewayv2_api.api2.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.lambda4.invoke_arn
   payload_format_version = "2.0"
 }
-
 resource "aws_apigatewayv2_route" "api2_r2" {
   api_id    = aws_apigatewayv2_api.api2.id
   route_key = "GET /lambda4"
   target    = "integrations/${aws_apigatewayv2_integration.api2_lambda4.id}"
 }
-
 resource "aws_lambda_permission" "api2_lambda4" {
   statement_id  = "AllowAPIG2L4"
   action        = "lambda:InvokeFunction"
   principal     = "apigateway.amazonaws.com"
-  function_name = aws_lambda_function.functions["lambda4"].function_name
+  function_name = aws_lambda_function.lambda4.function_name
   source_arn    = "${aws_apigatewayv2_api.api2.execution_arn}/*/*"
 }
-
 resource "aws_apigatewayv2_stage" "api2_stage" {
   api_id      = aws_apigatewayv2_api.api2.id
   name        = "$default"

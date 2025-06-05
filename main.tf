@@ -53,12 +53,8 @@ resource "aws_security_group" "lambda_sg" {
 }
 
 # S3 Bucket
-resource "random_id" "bucket_id" {
-  byte_length = 4
-}
-
 resource "aws_s3_bucket" "shared" {
-  bucket = "tf-demo-shared-bucket-${random_id.bucket_id.hex}"
+  bucket = "tf-demo-shared-example"
   acl    = "private"
 }
 

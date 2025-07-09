@@ -3,7 +3,7 @@
 # PTB-AGENT-5548 Terraform Project
 
 ## Background
-Currently, PTBs (Project Technical Briefs) must be created by hand, which can be time-consuming and repetitive. This project aims to speed up that process for very simple projects by enabling the use of agentic AI and automation tools to generate infrastructure and documentation quickly.
+Currently, PTBs (Project Technical Briefs) must be created by hand, which can be time-consuming and repetitive. This project aims to speed up that process for very simple projects by enabling the use of agentic AI and automation tools to generate infrastructure and documentation quickly. With less time spent on creating documation, more can be spent on building quality, ground-breaking projects.
 
 ## Objective
 - Decrease the time humans spend creating documentation (PTBs).
@@ -12,7 +12,6 @@ Currently, PTBs (Project Technical Briefs) must be created by hand, which can be
 
 ## Scope
 - **Global Application:** Designed to be used for projects in any AWS region.
-- **Simple Projects:** Focused on straightforward use cases (basic Lambda, S3, DynamoDB, API Gateway).
 - **Agentic AI Integration:** Leverages AI to automate infrastructure and documentation generation.
 - **Extensible:** Can be expanded for more complex workflows as needed.
 

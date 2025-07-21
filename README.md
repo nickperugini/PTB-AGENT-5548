@@ -113,6 +113,18 @@ Currently, PTBs (Project Technical Briefs) must be created by hand, which can be
 
 ---
 
+## Roadmap
+
+The project implementation is divided into three main phases:
+
+| Phase | Timeline | Activities |
+|-------|----------|------------|
+| **Design** | Jan 1 - Jun 1, 2025 | Architecture planning, technology selection, requirements gathering, diagram templates creation |
+| **Develop** | Jun 1 - Nov 1, 2025 | Implementation of parsers, diagram generators, PPT creators, summary generators, cost estimators |
+| **Deploy** | Nov 1, 2025 | Testing, documentation, release, and handover to operations team |
+
+---
+
 ## Notes
 - Make sure you have AWS credentials configured before running Terraform.
 - The Lambda function code can be modified in the respective `index.py` files under each `lambda` subdirectory.

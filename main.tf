@@ -366,3 +366,58 @@ resource "aws_apigatewayv2_stage" "api1_stage" {
     })
   }
 }
+
+# Okta JWT Authorizer for API Gateway v2 (example values)
+resource "aws_apigatewayv2_authorizer" "okta_api1" {
+  api_id          = aws_apigatewayv2_api.api1.id
+  name            = "OktaJWTAuthorizer"
+  authorizer_type = "JWT"
+  identity_sources = ["$request.header.Authorization"]
+
+  jwt_configuration {
+    audience = ["api://default"] # Example Okta API audience
+    issuer   = "https://dev-123456.okta.com/oauth2/default" # Example Okta issuer URL
+  }
+}
+
+resource "aws_apigatewayv2_authorizer" "okta_api2" {
+  api_id          = aws_apigatewayv2_api.api2.id
+  name            = "OktaJWTAuthorizer"
+  authorizer_type = "JWT"
+  identity_sources = ["$request.header.Authorization"]
+
+  jwt_configuration {
+    audience = ["api://default"] # Example Okta API audience
+    issuer   = "https://dev-123456.okta.com/oauth2/default" # Example Okta issuer URL
+  }
+}
+
+# Attach authorizer to routes for api1
+resource "aws_apigatewayv2_route" "api1_r1" {
+  api_id       = aws_apigatewayv2_api.api1.id
+  route_key    = "GET /lambda1"
+  target       = "integrations/${aws_apigatewayv2_integration.api1_lambda1.id}"
+  authorizer_id = aws_apigatewayv2_authorizer.okta_api1.id
+}
+
+resource "aws_apigatewayv2_route" "api1_r2" {
+  api_id       = aws_apigatewayv2_api.api1.id
+  route_key    = "GET /lambda2"
+  target       = "integrations/${aws_apigatewayv2_integration.api1_lambda2.id}"
+  authorizer_id = aws_apigatewayv2_authorizer.okta_api1.id
+}
+
+# Attach authorizer to routes for api2
+resource "aws_apigatewayv2_route" "api2_r1" {
+  api_id       = aws_apigatewayv2_api.api2.id
+  route_key    = "GET /lambda3"
+  target       = "integrations/${aws_apigatewayv2_integration.api2_lambda3.id}"
+  authorizer_id = aws_apigatewayv2_authorizer.okta_api2.id
+}
+
+resource "aws_apigatewayv2_route" "api2_r2" {
+  api_id       = aws_apigatewayv2_api.api2.id
+  route_key    = "GET /lambda4"
+  target       = "integrations/${aws_apigatewayv2_integration.api2_lambda4.id}"
+  authorizer_id = aws_apigatewayv2_authorizer.okta_api2.id
+}
